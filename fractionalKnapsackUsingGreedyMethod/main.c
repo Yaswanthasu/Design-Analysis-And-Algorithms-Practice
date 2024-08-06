@@ -22,8 +22,8 @@ double fractionalKnapsack(int capacity, Item items[], int n) {
 
     double totalValue = 0.0;
     for (int i = 0; i < n; i++) {
-        if (capacity == 0) break;
-
+        if (capacity == 0)
+            break;
         int takeWeight = items[i].weight < capacity ? items[i].weight : capacity;
         totalValue += takeWeight * items[i].ratio;
         capacity -= takeWeight;
