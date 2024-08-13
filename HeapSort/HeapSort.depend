@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1723525017 source:c:\users\cse\desktop\cs23b1009\exercise-4\heapsort\main.c
+	<stdio.h>
+	<stdlib.h>
+
