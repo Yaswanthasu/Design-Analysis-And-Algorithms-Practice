@@ -10,8 +10,7 @@ int knapsack_tabulation(int weights[], int values[], int n, int capacity) {
                 dp[i][w] = 0;
             } else if (weights[i-1] <= w) {
                 // Max value of including or excluding the item
-                dp[i][w] = (values[i-1] + dp[i-1][w - weights[i-1]] > dp[i-1][w]) ?
-                            values[i-1] + dp[i-1][w - weights[i-1]] : dp[i-1][w];
+                dp[i][w] = (values[i-1] + dp[i-1][w - weights[i-1]] > dp[i-1][w]) ?values[i-1] + dp[i-1][w - weights[i-1]] : dp[i-1][w];                 
             } else {
                 dp[i][w] = dp[i-1][w];
             }
