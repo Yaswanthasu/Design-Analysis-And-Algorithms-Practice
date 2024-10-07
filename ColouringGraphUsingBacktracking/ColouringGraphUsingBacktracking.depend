@@ -1,0 +1,6 @@
+# depslib dependency file v1.0
+1728317670 source:a:\daa practice\colouringgraphusingbacktracking\main.c
+	<stdio.h>
+	<stdlib.h>
+	<stdbool.h>
+
