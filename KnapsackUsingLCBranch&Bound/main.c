@@ -44,9 +44,55 @@ int compareItems(const void* a, const void* b) {
     return (ratio1 > ratio2) ? -1 : 1;
 }
 
-// Function to solve the Knapsack problem using Branch and Bound
+// Priority queue structure for nodes, using an array-based heap
+struct PriorityQueue {
+    struct Node *nodes;
+    int size, capacity;
+};
+
+// Helper functions for priority queue
+struct PriorityQueue* createPriorityQueue(int capacity) {
+    struct PriorityQueue* pq = (struct PriorityQueue*)malloc(sizeof(struct PriorityQueue));
+    pq->nodes = (struct Node*)malloc(capacity * sizeof(struct Node));
+    pq->size = 0;
+    pq->capacity = capacity;
+    return pq;
+}
+
+void swap(struct Node* a, struct Node* b) {
+    struct Node temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void insert(struct PriorityQueue* pq, struct Node node) {
+    int i = pq->size++;
+    pq->nodes[i] = node;
+    while (i != 0 && pq->nodes[(i - 1) / 2].bound < pq->nodes[i].bound) {
+        swap(&pq->nodes[i], &pq->nodes[(i - 1) / 2]);
+        i = (i - 1) / 2;
+    }
+}
+
+struct Node extractMax(struct PriorityQueue* pq) {
+    struct Node root = pq->nodes[0];
+    pq->nodes[0] = pq->nodes[--pq->size];
+    int i = 0, largest = 0;
+    while ((2 * i + 1) < pq->size) {
+        int left = 2 * i + 1, right = 2 * i + 2;
+        largest = (right < pq->size && pq->nodes[right].bound > pq->nodes[left].bound) ? right : left;
+        if (pq->nodes[i].bound >= pq->nodes[largest].bound) break;
+        swap(&pq->nodes[i], &pq->nodes[largest]);
+        i = largest;
+    }
+    return root;
+}
+
+// Function to solve the Knapsack problem using LC Branch and Bound
 int knapsack(int maxWeight, struct Item items[], int n) {
     qsort(items, n, sizeof(struct Item), compareItems);  // Sort items by value-to-weight ratio
+
+    struct PriorityQueue* pq = createPriorityQueue(1000);
 
     struct Node u, v;
     u.level = -1;
@@ -54,15 +100,14 @@ int knapsack(int maxWeight, struct Item items[], int n) {
     u.bound = calculateBound(u, n, maxWeight, items);
 
     int maxProfit = 0;
-    struct Node queue[1000];
-    int front = 0, rear = 0;
+    int globalUpperBound = u.bound;  // Initialize global upper bound
 
-    queue[rear++] = u;  // Add initial node
+    insert(pq, u);  // Add initial node
 
-    while (front < rear) {
-        u = queue[front++];  // Get the next node
+    while (pq->size > 0) {
+        u = extractMax(pq);  // Get node with the highest bound
 
-        if (u.level == n - 1) {
+        if (u.bound <= maxProfit || u.level == n - 1) {
             continue;
         }
 
@@ -77,7 +122,8 @@ int knapsack(int maxWeight, struct Item items[], int n) {
 
         v.bound = calculateBound(v, n, maxWeight, items);
         if (v.bound > maxProfit) {
-            queue[rear++] = v;  // Add the node to the queue
+            globalUpperBound = (v.bound > globalUpperBound) ? v.bound : globalUpperBound;  // Update global upper bound
+            insert(pq, v);
         }
 
         // Exclude the next item
@@ -85,9 +131,13 @@ int knapsack(int maxWeight, struct Item items[], int n) {
         v.profit = u.profit;
         v.bound = calculateBound(v, n, maxWeight, items);
         if (v.bound > maxProfit) {
-            queue[rear++] = v;  // Add the node to the queue
+            globalUpperBound = (v.bound > globalUpperBound) ? v.bound : globalUpperBound;  // Update global upper bound
+            insert(pq, v);
         }
     }
+
+    free(pq->nodes);
+    free(pq);
 
     return maxProfit;
 }
