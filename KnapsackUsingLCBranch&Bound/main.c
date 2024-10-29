@@ -3,166 +3,138 @@
 
 // Structure to represent an item
 struct Item {
-    int value, weight;
+    int weight;
+    int value;
 };
 
 // Structure to represent a node in the decision tree
 struct Node {
-    int level, profit, weight;
-    float bound;
+    int level;     // Current level in the tree (current item)
+    int profit;    // Total profit so far
+    int weight;    // Total weight so far
+    float bound;   // Upper bound of profit for this node
 };
 
-// Function to calculate the bound (upper limit of profit) for a node
-float calculateBound(struct Node u, int n, int maxWeight, struct Item items[]) {
-    if (u.weight >= maxWeight) {
-        return 0;
+// Function to calculate the upper bound (best possible profit) for a node
+float calculateBound(struct Node u, int n, int capacity, struct Item items[]) {
+    if (u.weight >= capacity) {
+        return 0;  // If weight exceeds the capacity, bound is 0
     }
 
-    int profitBound = u.profit;
-    int totalWeight = u.weight;
-    int i = u.level + 1;
+    float profit_bound = u.profit;
+    int j = u.level + 1;
+    int total_weight = u.weight;
 
-    // Add items until the knapsack is full
-    while (i < n && totalWeight + items[i].weight <= maxWeight) {
-        totalWeight += items[i].weight;
-        profitBound += items[i].value;
-        i++;
+    // Add items to the knapsack as long as there's space
+    while (j < n && total_weight + items[j].weight <= capacity) {
+        total_weight += items[j].weight;
+        profit_bound += items[j].value;
+        j++;
     }
 
-    // Add fractional part of the next item, if possible
-    if (i < n) {
-        profitBound += (maxWeight - totalWeight) * items[i].value / items[i].weight;
+    // If not enough space for the next item, take the fractional part
+    if (j < n) {
+        profit_bound += (capacity - total_weight) * (float)items[j].value / items[j].weight;
     }
 
-    return profitBound;
+    return profit_bound;
 }
 
-// Function to compare items based on value-to-weight ratio
+// Comparator function for sorting items by value/weight ratio (greedy)
 int compareItems(const void* a, const void* b) {
-    double ratio1 = ((struct Item*)a)->value / (double)((struct Item*)a)->weight;
-    double ratio2 = ((struct Item*)b)->value / (double)((struct Item*)b)->weight;
-    return (ratio1 > ratio2) ? -1 : 1;
+    struct Item* item1 = (struct Item*)a;
+    struct Item* item2 = (struct Item*)b;
+    double r1 = (double)item1->value / item1->weight;
+    double r2 = (double)item2->value / item2->weight;
+    if (r1 > r2) return -1;
+    else if (r1 < r2) return 1;
+    else return 0;
 }
 
-// Priority queue structure for nodes, using an array-based heap
-struct PriorityQueue {
-    struct Node *nodes;
-    int size, capacity;
-};
+// Function to solve the 0-1 Knapsack using Least Cost Branch and Bound
+int knapsack(int capacity, struct Item items[], int n) {
+    // Sort items by value/weight ratio in decreasing order
+    qsort(items, n, sizeof(struct Item), compareItems);
 
-// Helper functions for priority queue
-struct PriorityQueue* createPriorityQueue(int capacity) {
-    struct PriorityQueue* pq = (struct PriorityQueue*)malloc(sizeof(struct PriorityQueue));
-    pq->nodes = (struct Node*)malloc(capacity * sizeof(struct Node));
-    pq->size = 0;
-    pq->capacity = capacity;
-    return pq;
-}
+    // Create an empty queue for the Branch and Bound algorithm
+    struct Node queue[1000];
+    int front = 0, rear = 0;
 
-void swap(struct Node* a, struct Node* b) {
-    struct Node temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-void insert(struct PriorityQueue* pq, struct Node node) {
-    int i = pq->size++;
-    pq->nodes[i] = node;
-    while (i != 0 && pq->nodes[(i - 1) / 2].bound < pq->nodes[i].bound) {
-        swap(&pq->nodes[i], &pq->nodes[(i - 1) / 2]);
-        i = (i - 1) / 2;
-    }
-}
-
-struct Node extractMax(struct PriorityQueue* pq) {
-    struct Node root = pq->nodes[0];
-    pq->nodes[0] = pq->nodes[--pq->size];
-    int i = 0, largest = 0;
-    while ((2 * i + 1) < pq->size) {
-        int left = 2 * i + 1, right = 2 * i + 2;
-        largest = (right < pq->size && pq->nodes[right].bound > pq->nodes[left].bound) ? right : left;
-        if (pq->nodes[i].bound >= pq->nodes[largest].bound) break;
-        swap(&pq->nodes[i], &pq->nodes[largest]);
-        i = largest;
-    }
-    return root;
-}
-
-// Function to solve the Knapsack problem using LC Branch and Bound
-int knapsack(int maxWeight, struct Item items[], int n) {
-    qsort(items, n, sizeof(struct Item), compareItems);  // Sort items by value-to-weight ratio
-
-    struct PriorityQueue* pq = createPriorityQueue(1000);
-
+    // Add a dummy node as the root of the tree
     struct Node u, v;
-    u.level = -1;
-    u.profit = u.weight = 0;
-    u.bound = calculateBound(u, n, maxWeight, items);
+    v.level = -1;
+    v.profit = 0;
+    v.weight = 0;
+    v.bound = calculateBound(v, n, capacity, items);
+    queue[rear++] = v;
 
-    int maxProfit = 0;
-    int globalUpperBound = u.bound;  // Initialize global upper bound
+    int max_profit = 0;
 
-    insert(pq, u);  // Add initial node
+    // Branch and Bound loop
+    while (front < rear) {
+        // Dequeue the front node
+        v = queue[front++];
 
-    while (pq->size > 0) {
-        u = extractMax(pq);  // Get node with the highest bound
+        // If the node's bound is better than the current best, explore it
+        if (v.bound > max_profit) {
+            // Explore the next level (including the current item)
+            u.level = v.level + 1;
+            u.weight = v.weight + items[u.level].weight;
+            u.profit = v.profit + items[u.level].value;
 
-        if (u.bound <= maxProfit || u.level == n - 1) {
-            continue;
-        }
+            // If this is a promising solution, update max_profit
+            if (u.weight <= capacity && u.profit > max_profit) {
+                max_profit = u.profit;
+            }
 
-        // Include the next item
-        v.level = u.level + 1;
-        v.weight = u.weight + items[v.level].weight;
-        v.profit = u.profit + items[v.level].value;
+            // Calculate the upper bound for this node
+            u.bound = calculateBound(u, n, capacity, items);
 
-        if (v.weight <= maxWeight && v.profit > maxProfit) {
-            maxProfit = v.profit;
-        }
+            // If the node is promising, add it to the queue
+            if (u.bound > max_profit) {
+                queue[rear++] = u;
+            }
 
-        v.bound = calculateBound(v, n, maxWeight, items);
-        if (v.bound > maxProfit) {
-            globalUpperBound = (v.bound > globalUpperBound) ? v.bound : globalUpperBound;  // Update global upper bound
-            insert(pq, v);
-        }
+            // Now explore the next level (excluding the current item)
+            u.weight = v.weight;
+            u.profit = v.profit;
+            u.bound = calculateBound(u, n, capacity, items);
 
-        // Exclude the next item
-        v.weight = u.weight;
-        v.profit = u.profit;
-        v.bound = calculateBound(v, n, maxWeight, items);
-        if (v.bound > maxProfit) {
-            globalUpperBound = (v.bound > globalUpperBound) ? v.bound : globalUpperBound;  // Update global upper bound
-            insert(pq, v);
+            // If the node is promising, add it to the queue
+            if (u.bound > max_profit) {
+                queue[rear++] = u;
+            }
         }
     }
 
-    free(pq->nodes);
-    free(pq);
-
-    return maxProfit;
+    return max_profit;
 }
 
 int main() {
-    int n, maxWeight;
+    int n, capacity;
 
-    // Get the number of items and knapsack capacity
+    // Input: number of items
     printf("Enter the number of items: ");
     scanf("%d", &n);
 
-    printf("Enter the knapsack capacity: ");
-    scanf("%d", &maxWeight);
+    // Input: capacity of the knapsack
+    printf("Enter the capacity of the knapsack: ");
+    scanf("%d", &capacity);
 
+    // Declare an array of items
     struct Item items[n];
 
-    // Get values and weights of items
+    // Input: weights and values of each item
     for (int i = 0; i < n; i++) {
-        printf("Enter value and weight for item %d: ", i + 1);
+        printf("Enter value and weight  of item %d: ", i + 1);
         scanf("%d %d", &items[i].value, &items[i].weight);
     }
 
-    // Call the knapsack function and display the result
-    int maxProfit = knapsack(maxWeight, items, n);
-    printf("Maximum profit: %d\n", maxProfit);
+    // Call the knapsack function
+    int maxProfit = knapsack(capacity, items, n);
+
+    // Output: maximum profit
+    printf("Maximum Profit: %d\n", maxProfit);
 
     return 0;
 }
